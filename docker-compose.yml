@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  # Service aplikasi Node.js kamu
+  webhook-app:
+    build: .
+    container_name: my_webhook_container
+    ports:
+      - '3000:3000'
+    environment:
+      - VERIFY_TOKEN=token_rahasia_kamu
+      - PORT=3000
+    restart: always
+
+  # Service Ngrok (Otomatis tunneling)
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: always
+    command:
+      - 'http'
+      - 'webhook-app:3000'
+    environment:
+      - NGROK_AUTHTOKEN=PASTE_TOKEN_NGROK_KAMU_DISINI
+    ports:
+      - '4040:4040'
+    depends_on:
+      - webhook-app
