@@ -1,18 +1,13 @@
-# Gunakan image Node.js versi ringan
 FROM node:18-alpine
 
-# Tentukan direktori kerja di dalam container
 WORKDIR /usr/src/app
 
-# Copy package.json dan install dependencies
-COPY package*.json ./
-RUN npm install --production
+# Install dependencies dan nodemon secara global
+RUN npm init -y && npm install express axios socket.io && npm install -g nodemon
 
-# Copy semua file kode ke dalam container
 COPY . .
 
-# Expose port yang digunakan
 EXPOSE 3000
 
-# Jalankan aplikasi
-CMD [ "node", "app.js" ]
+# Gunakan nodemon untuk menjalankan aplikasi
+CMD [ "nodemon", "--poll", "app.js" ]

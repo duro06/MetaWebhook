@@ -1,19 +1,342 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Webhook Status</title>
+  <head>
+    <meta charset="UTF-8" />
+    <title>WhatsApp Web Dashboard</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding-top: 50px; background: #f4f4f9; }
-        .card { background: white; padding: 20px; border-radius: 8px; display: inline-block; shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .status { color: green; font-weight: bold; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: #f0f2f5;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .app-container {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Sidebar Kiri */
+      .sidebar {
+        width: 30%;
+        border-right: 1px solid #ddd;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+      }
+      .sidebar-header {
+        background: #f0f2f5;
+        padding: 15px;
+        border-bottom: 1px solid #ddd;
+        font-weight: bold;
+      }
+      .chat-list {
+        flex: 1;
+        overflow-y: auto;
+      }
+      .chat-item {
+        padding: 15px;
+        border-bottom: 1px solid #f0f2f5;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+      }
+      .chat-item:hover {
+        background: #f5f6f6;
+      }
+      .chat-item.active {
+        background: #ebebeb;
+      }
+      .chat-item .num {
+        font-weight: bold;
+        color: #111;
+      }
+      .chat-item .last-msg {
+        font-size: 0.85rem;
+        color: #666;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Area Chat Kanan */
+      .main-chat {
+        width: 70%;
+        display: flex;
+        flex-direction: column;
+        background: #efeae2;
+        position: relative;
+      }
+      .chat-header {
+        background: #f0f2f5;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid #ddd;
+      }
+      .chat-header .current-num {
+        font-weight: bold;
+        color: #111;
+      }
+
+      .messages-area {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+        background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Bubble Style */
+      .msg-row {
+        display: flex;
+        margin-bottom: 8px;
+        width: 100%;
+      }
+      .bubble {
+        background: #fff;
+        padding: 8px 12px;
+        border-radius: 8px;
+        max-width: 65%;
+        box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+        font-size: 0.95rem;
+      }
+      .msg-time {
+        font-size: 0.7rem;
+        color: #888;
+        text-align: right;
+        margin-top: 4px;
+      }
+
+      .placeholder {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        color: #666;
+      }
+
+      /* Tambahan CSS untuk Input Bar */
+      .input-area {
+        background: #f0f2f5;
+        padding: 10px 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .input-area input {
+        flex: 1;
+        padding: 10px 15px;
+        border-radius: 20px;
+        border: none;
+        outline: none;
+        font-size: 0.95rem;
+      }
+      .input-area button {
+        background: #00a884;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .input-area button:hover {
+        background: #008f6f;
+      }
+
+      /* Tambahan style untuk bubble pesan KELUAR (kita sendiri) */
+      .msg-row.me {
+        justify-content: flex-end;
+      }
+      .msg-row.me .bubble {
+        background: #d9fdd3;
+      }
+      .status-icon {
+        font-size: 0.7rem;
+        margin-left: 5px;
+      }
+      .sent {
+        color: #888;
+      } /* Kelabu */
+      .delivered {
+        color: #888;
+      } /* Kelabu (bisa dibuat double centang) */
+      .read {
+        color: #53bdeb;
+      } /* Biru */
     </style>
-</head>
-<body>
-    <div class="card">
-        <h1>Webhook Receiver 🚀</h1>
-        <p>Status: <span class="status">ONLINE</span></p>
-        <p>Kirim POST request ke URL ini untuk ngetes!</p>
+  </head>
+  <body>
+    <div class="app-container">
+      <div class="sidebar">
+        <div class="sidebar-header">Chats (Live Webhook)</div>
+        <div id="chat-list" class="chat-list"></div>
+      </div>
+
+      <div class="main-chat">
+        <div id="chat-header" class="chat-header" style="display: none">
+          <div class="current-num" id="current-contact">Pilih Chat</div>
+        </div>
+
+        <div id="messages-area" class="messages-area">
+          <div class="placeholder">Pilih nomor di kiri untuk melihat pesan</div>
+        </div>
+        <div id="input-area" class="input-area" style="display: none">
+          <input type="text" id="msg-input" placeholder="Ketik pesan..." />
+          <button id="send-btn">Kirim</button>
+        </div>
+      </div>
     </div>
-</body>
+
+    <script>
+      const socket = io()
+      const STORAGE_KEY = 'wa_webhook_history'
+
+      let chatListData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}
+      let activeContact = null
+
+      renderSidebar()
+
+      socket.on('new_chat', (data) => {
+        const { from, text, time } = data
+
+        // 2. SIMPAN DATA: Update variabel memori
+        if (!chatListData[from]) {
+          chatListData[from] = []
+        }
+        chatListData[from].push({ text, time })
+
+        // Batasi history (misal cuma simpan 50 pesan terakhir biar gak lemot)
+        if (chatListData[from].length > 50) chatListData[from].shift()
+
+        // Tulis ke LocalStorage agar permanen di browser
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(chatListData))
+
+        renderSidebar()
+
+        if (activeContact === from) {
+          appendMessage(text, time)
+        }
+      })
+
+      // 1. Dengerin update status dari server
+      socket.on('status_update', (data) => {
+        // Cari elemen bubble berdasarkan ID pesan
+        const msgEl = document.getElementById(data.messageId)
+        if (msgEl) {
+          const icon = msgEl.querySelector('.status-icon')
+          icon.className = `status-icon ${data.status}`
+
+          // Ubah icon berdasarkan status
+          if (data.status === 'sent') icon.innerHTML = '✓'
+          if (data.status === 'delivered') icon.innerHTML = '✓✓'
+          if (data.status === 'read') icon.innerHTML = '✓✓'
+        }
+      })
+      function renderSidebar() {
+        const listEl = document.getElementById('chat-list')
+        listEl.innerHTML = ''
+
+        // Urutkan berdasarkan chat terbaru yang masuk
+        const sortedContacts = Object.keys(chatListData).sort((a, b) => {
+          const lastA = chatListData[a][chatListData[a].length - 1].time
+          const lastB = chatListData[b][chatListData[b].length - 1].time
+          return lastB.localeCompare(lastA)
+        })
+
+        sortedContacts.forEach((num) => {
+          const history = chatListData[num]
+          const lastMsg = history[history.length - 1].text
+
+          const item = document.createElement('div')
+          item.className = `chat-item ${num === activeContact ? 'active' : ''}`
+          item.onclick = () => selectContact(num)
+          item.innerHTML = `
+                <div class="num">${num}</div>
+                <div class="last-msg">${lastMsg}</div>
+            `
+          listEl.appendChild(item)
+        })
+      }
+
+      const inputArea = document.getElementById('input-area')
+      const msgInput = document.getElementById('msg-input')
+      const sendBtn = document.getElementById('send-btn')
+      function selectContact(num) {
+        activeContact = num
+        document.getElementById('chat-header').style.display = 'block'
+        inputArea.style.display = 'flex' // Tampilkan input saat kontak dipilih
+        document.getElementById('current-contact').innerText = num
+
+        const area = document.getElementById('messages-area')
+        area.innerHTML = ''
+
+        chatListData[num].forEach((m) => appendMessage(m.text, m.time, m.isMe))
+        renderSidebar()
+      }
+
+      // Fungsi kirim saat tombol diklik
+      sendBtn.onclick = sendMessage
+      msgInput.onkeypress = (e) => {
+        if (e.key === 'Enter') sendMessage()
+      }
+
+      function sendMessage() {
+        const text = msgInput.value.trim()
+        if (!text || !activeContact) return
+
+        const time = new Date().toLocaleTimeString()
+
+        // 1. Kirim ke Server lewat Socket
+        socket.emit('send_message', {
+          to: activeContact,
+          text: text,
+        })
+
+        // 2. Update UI & LocalStorage (Pesan kita sendiri)
+        if (!chatListData[activeContact]) chatListData[activeContact] = []
+        chatListData[activeContact].push({ text, time, isMe: true })
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(chatListData))
+
+        appendMessage(text, time, true)
+        renderSidebar()
+        msgInput.value = '' // Reset input
+      }
+
+      // 2. Modifikasi fungsi appendMessage supaya nerima ID pesan
+      function appendMessage(text, time, isMe = false, msgId = null) {
+        const area = document.getElementById('messages-area')
+        const row = document.createElement('div')
+        row.className = `msg-row ${isMe ? 'me' : ''}`
+
+        // Kita kasih ID ke elemen supaya bisa dicari pas status berubah
+        const idAttr = msgId ? `id="${msgId}"` : ''
+
+        row.innerHTML = `
+        <div class="bubble" ${idAttr}>
+            <div>${text}</div>
+            <div class="msg-time">
+                ${time} 
+                ${isMe ? '<span class="status-icon">...</span>' : ''}
+            </div>
+        </div>
+    `
+        area.appendChild(row)
+        area.scrollTop = area.scrollHeight
+      }
+    </script>
+  </body>
 </html>

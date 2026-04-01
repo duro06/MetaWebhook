@@ -1,4 +1,4 @@
-version: '3.8'
+#version: '3.8'
 services:
   # Service aplikasi Node.js kamu
   webhook-app:
@@ -6,8 +6,15 @@ services:
     container_name: my_webhook_container
     ports:
       - '3000:3000'
+      # --- TAMBAHKAN BAGIAN INI ---
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    command: nodemon --poll app.js
+    # ----------------------------
     environment:
-      - VERIFY_TOKEN=token_rahasia_kamu
+      # Mengambil dari .env
+      - VERIFY_TOKEN=${MY_WEBHOOK_VERIFY_TOKEN}
       - PORT=3000
     restart: always
 
@@ -19,7 +26,8 @@ services:
       - 'http'
       - 'webhook-app:3000'
     environment:
-      - NGROK_AUTHTOKEN=PASTE_TOKEN_NGROK_KAMU_DISINI
+      # Mengambil dari .env
+      - NGROK_AUTHTOKEN=${MY_NGROK_TOKEN}
     ports:
       - '4040:4040'
     depends_on:
