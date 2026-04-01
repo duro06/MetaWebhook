@@ -10,7 +10,7 @@ services:
     volumes:
       - .:/usr/src/app
       - /usr/src/app/node_modules
-    command: nodemon --poll app.js
+    command: npx nodemon app.js --poll
     # ----------------------------
     environment:
       # Mengambil dari .env
